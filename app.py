@@ -1,6 +1,9 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import joblib
+import threading
+import time
+import requests
 
 app = Flask(__name__)
 CORS(app)
@@ -27,45 +30,11 @@ def home():
     <html>
     <head>
         <title>Spam Detection API</title>
-        <style>
-            body {
-                font-family: Arial, sans-serif;
-                background: #0f172a;
-                color: #e5e7eb;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                height: 100vh;
-                margin: 0;
-            }
-            .card {
-                background: #020617;
-                padding: 30px 40px;
-                border-radius: 12px;
-                box-shadow: 0 0 30px rgba(0,0,0,0.6);
-                text-align: center;
-            }
-            h1 {
-                color: #22c55e;
-            }
-            p {
-                color: #94a3b8;
-            }
-            code {
-                background: #020617;
-                padding: 4px 8px;
-                border-radius: 6px;
-                color: #38bdf8;
-            }
-        </style>
     </head>
-    <body>
-        <div class="card">
-            <h1>🚀 Spam Detection API is Running</h1>
-            <p>Server Status: <strong>ACTIVE</strong></p>
-            <p>Health Check: <code>/health</code></p>
-            <p>Prediction Endpoint: <code>/predict</code></p>
-        </div>
+    <body style="font-family:Arial;background:#0f172a;color:#e5e7eb;text-align:center;padding-top:100px;">
+        <h1>🚀 Spam Detection API is Running</h1>
+        <p>Status: ACTIVE</p>
+        <p>/health | /predict</p>
     </body>
     </html>
     """
@@ -95,9 +64,7 @@ def predict():
                 "reason": "Empty message received"
             }), 400
 
-        # --------------------------
         # Signature-based detection
-        # --------------------------
         matched_keywords = [kw for kw in signatures if kw in message]
         if matched_keywords:
             return jsonify({
@@ -106,9 +73,7 @@ def predict():
                 "reason": f"Matched keywords: {', '.join(matched_keywords)}"
             }), 200
 
-        # --------------------------
         # ML-based detection
-        # --------------------------
         vector = vectorizer.transform([message])
         prediction = model.predict(vector)[0]
 
@@ -125,7 +90,21 @@ def predict():
         }), 500
 
 # ==========================
+# SELF-PING BACKGROUND THREAD
+# ==========================
+def self_ping():
+    url = "https://smishing-backend-en4u.onrender.com/health"
+    while True:
+        try:
+            requests.get(url, timeout=10)
+            print("✅ Self-ping sent")
+        except Exception as e:
+            print("❌ Self-ping failed:", e)
+        time.sleep(60)  # 1 minute
+
+# ==========================
 # MAIN ENTRY POINT
 # ==========================
 if __name__ == "__main__":
+    threading.Thread(target=self_ping, daemon=True).start()
     app.run(host="0.0.0.0", port=5000)
