@@ -1,36 +1,3 @@
-# from flask import Flask, request, jsonify
-# from flask_cors import CORS
-
-# app = Flask(__name__)
-# CORS(app)
-
-# with open("signatures.txt", "r") as f:
-#     signatures = set(line.strip().lower() for line in f if line.strip())
-
-# @app.route("/predict", methods=["POST"])
-# def predict():
-#     try:
-#         data = request.get_json()
-#         message = data.get("message", "").lower()
-#         matched_keywords = [kw for kw in signatures if kw in message]
-#         is_spam = bool(matched_keywords)
-
-#         return jsonify({
-#             "spam": is_spam,
-#             "reason": f"Matched keywords: {', '.join(matched_keywords)}" if is_spam else "No suspicious keywords found"
-#         }), 200
-
-#     except Exception as e:
-#         return jsonify({
-#             "spam": False,
-#             "reason": f"Error: {str(e)}"
-#         }), 500
-
-# if __name__ == "__main__":
-#     app.run(host="0.0.0.0", port=5000, debug=True)
-
-
-
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import joblib
@@ -38,21 +5,99 @@ import joblib
 app = Flask(__name__)
 CORS(app)
 
-# Load signature keywords
+# ==========================
+# LOAD SIGNATURE KEYWORDS
+# ==========================
 with open("signatures.txt", "r") as f:
     signatures = set(line.strip().lower() for line in f if line.strip())
 
-# Load saved ML model and vectorizer
+# ==========================
+# LOAD ML MODEL & VECTORIZER
+# ==========================
 model = joblib.load("random_forest_spam_model.pkl")
 vectorizer = joblib.load("tfidf_vectorizer.pkl")
 
+# ==========================
+# ROOT ROUTE (HTML CHECK)
+# ==========================
+@app.route("/", methods=["GET"])
+def home():
+    return """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Spam Detection API</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                background: #0f172a;
+                color: #e5e7eb;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                height: 100vh;
+                margin: 0;
+            }
+            .card {
+                background: #020617;
+                padding: 30px 40px;
+                border-radius: 12px;
+                box-shadow: 0 0 30px rgba(0,0,0,0.6);
+                text-align: center;
+            }
+            h1 {
+                color: #22c55e;
+            }
+            p {
+                color: #94a3b8;
+            }
+            code {
+                background: #020617;
+                padding: 4px 8px;
+                border-radius: 6px;
+                color: #38bdf8;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="card">
+            <h1>🚀 Spam Detection API is Running</h1>
+            <p>Server Status: <strong>ACTIVE</strong></p>
+            <p>Health Check: <code>/health</code></p>
+            <p>Prediction Endpoint: <code>/predict</code></p>
+        </div>
+    </body>
+    </html>
+    """
+
+# ==========================
+# HEALTH CHECK ROUTE
+# ==========================
+@app.route("/health", methods=["GET"])
+def health():
+    return jsonify({
+        "status": "alive",
+        "message": "Server is running fine"
+    }), 200
+
+# ==========================
+# SPAM PREDICTION ROUTE
+# ==========================
 @app.route("/predict", methods=["POST"])
 def predict():
     try:
         data = request.get_json()
         message = data.get("message", "").lower()
 
+        if not message:
+            return jsonify({
+                "spam": False,
+                "reason": "Empty message received"
+            }), 400
+
+        # --------------------------
         # Signature-based detection
+        # --------------------------
         matched_keywords = [kw for kw in signatures if kw in message]
         if matched_keywords:
             return jsonify({
@@ -61,13 +106,14 @@ def predict():
                 "reason": f"Matched keywords: {', '.join(matched_keywords)}"
             }), 200
 
-        # ML-based detection (fallback)
+        # --------------------------
+        # ML-based detection
+        # --------------------------
         vector = vectorizer.transform([message])
         prediction = model.predict(vector)[0]
-        is_spam = bool(prediction)
 
         return jsonify({
-            "spam": is_spam,
+            "spam": bool(prediction),
             "method": "model",
             "reason": "Predicted by ML model"
         }), 200
@@ -75,8 +121,11 @@ def predict():
     except Exception as e:
         return jsonify({
             "spam": False,
-            "reason": f"Error: {str(e)}"
+            "error": str(e)
         }), 500
 
+# ==========================
+# MAIN ENTRY POINT
+# ==========================
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5000)
